@@ -1,0 +1,37 @@
+From c3639bc23eaaed7fa94d377af42f00ddc5083de2 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Fri, 4 Feb 2022 22:50:28 +0100
+Subject: [PATCH 1/3] core: Unset device ctx if it has been destroyed
+
+Devices can outlive their context in some cases (in particular with
+python garbage collection). Guard against this by clearing the ctx
+pointer so that it is not pointing to uninitialized memory.
+
+Closes #1058
+---
+ libusb/core.c         | 1 +
+ libusb/version_nano.h | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 7893ac2..1c1ada1 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -2441,6 +2441,7 @@ void API_EXPORTED libusb_exit(libusb_context *ctx)
+ 	for_each_device(_ctx, dev) {
+ 		usbi_warn(_ctx, "device %d.%d still referenced",
+ 			dev->bus_number, dev->device_address);
++		DEVICE_CTX(dev) = NULL;
+ 	}
+ 
+ 	if (!list_empty(&_ctx->open_devs))
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 03df9b4..2b170fc 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11692
++#define LIBUSB_NANO 11693
+-- 
+2.34.1
+

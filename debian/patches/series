@@ -1,0 +1,4 @@
+0001-core-Unset-device-ctx-if-it-has-been-destroyed.patch
+0002-io-Track-device-in-usbi_transfer.patch
+0003-core-Suppress-hotplug-events-during-initial-enumerat.patch
+git_backward_compat.patch

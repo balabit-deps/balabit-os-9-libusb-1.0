@@ -1,0 +1,70 @@
+From 0846456f3a9fda8ff5469d9d0b9700837ff16f04 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Tue, 1 Mar 2022 15:08:38 +0100
+Subject: [PATCH 3/3] core: Suppress hotplug events during initial enumeration
+
+The initial enumeration should not result in hotplug events to be fired.
+This is just a convenience though, API users still need to be prepared
+to be notified a second time for a device that was plugged in between
+libusb_init and libusb_hotplug_register_callback.
+
+This regressed with commit 6929b82 ("Fix segmentation fault in
+libusb_init() if usbi_backend.init() fails"). This commit avoids the
+mentioned segmentation fault by avoiding to clean up the hotplug code if
+it was not yet initialised.
+
+Fixes #1082
+Closes #1090
+References #989
+---
+ libusb/core.c         | 5 +++--
+ libusb/hotplug.c      | 3 +++
+ libusb/version_nano.h | 2 +-
+ 3 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 1c1ada1..3559470 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -2346,14 +2346,15 @@ int API_EXPORTED libusb_init(libusb_context **ctx)
+ 	list_add(&_ctx->list, &active_contexts_list);
+ 	usbi_mutex_static_unlock(&active_contexts_lock);
+ 
+-	usbi_hotplug_init(_ctx);
+-
+ 	if (usbi_backend.init) {
+ 		r = usbi_backend.init(_ctx);
+ 		if (r)
+ 			goto err_io_exit;
+ 	}
+ 
++	/* Initialize hotplug after the initial enumeration is done. */
++	usbi_hotplug_init(_ctx);
++
+ 	if (ctx)
+ 		*ctx = _ctx;
+ 
+diff --git a/libusb/hotplug.c b/libusb/hotplug.c
+index 402e693..6b743c7 100644
+--- a/libusb/hotplug.c
++++ b/libusb/hotplug.c
+@@ -171,6 +171,9 @@ void usbi_hotplug_exit(struct libusb_context *ctx)
+ 	if (!libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG))
+ 		return;
+ 
++	if (!usbi_atomic_load(&ctx->hotplug_ready))
++		return;
++
+ 	/* free all registered hotplug callbacks */
+ 	for_each_hotplug_cb_safe(ctx, hotplug_cb, next_cb) {
+ 		list_del(&hotplug_cb->list);
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 7bf6ace..10c3ecf 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11694
++#define LIBUSB_NANO 11695
+-- 
+2.34.1
+
